@@ -77,6 +77,8 @@ namespace WebServer
             // Release the semaphore so that another listener can be immediately started up.
             sem.Release();
 
+            Log(context.Request);
+
             // We have a connection, do something...
             string response = "Hello Browser!";
             byte[] encoded = Encoding.UTF8.GetBytes(response);
@@ -93,6 +95,24 @@ namespace WebServer
             List<IPAddress> localHostIPs = GetLocalHostIPs();
             HttpListener listener = InitializeListener(localHostIPs);
             Start(listener);
+        }
+
+        /// <summary>
+        /// Log requests.
+        /// </summary>
+        public static void Log(HttpListenerRequest request)
+        {
+            string uri = request.Url.AbsoluteUri;
+            int index = -1;
+            for (int i = 0; i < 3; i++)
+            {
+                index = uri.IndexOf('/', index + 1);
+                if (index == -1)
+                    break;
+            }
+            string result = (index != -1 && index < uri.Length - 1) ? uri.Substring(index + 1) : string.Empty;
+
+            Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + result);
         }
     }
 }
