@@ -10,7 +10,7 @@ namespace WebServer
     /// </summary>
     public static class Server
     {
-        private static HttpListener? listener;
+        private static HttpListener listener;
         public static int maxSimultaneousConnections = 20;
         private static Semaphore sem = new Semaphore(maxSimultaneousConnections, maxSimultaneousConnections);
 
@@ -21,7 +21,9 @@ namespace WebServer
         {
             IPHostEntry host;
             host = Dns.GetHostEntry(Dns.GetHostName());
-            List<IPAddress> ret = host.AddressList.Where(ip => ip.AddressFamily == AddressFamily.InterNetwork).ToList();
+            List<IPAddress> ret = host.AddressList
+                .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                .ToList();
 
             return ret;
         }
