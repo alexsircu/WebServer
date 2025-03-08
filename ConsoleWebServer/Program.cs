@@ -1,4 +1,5 @@
-﻿using WebServer;
+﻿using System.Reflection;
+using WebServer;
 
 namespace ConsoleWebServer
 {
@@ -6,8 +7,15 @@ namespace ConsoleWebServer
     {
         static void Main(string[] args)
         {
-            Server.Start();
+            string websitePath = GetWebsitePath();
+            Server.Start(websitePath);
             Console.ReadLine();
+        }
+
+        public static string GetWebsitePath()
+        {
+            // Path ou our exe.
+            return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
         }
     }
 }

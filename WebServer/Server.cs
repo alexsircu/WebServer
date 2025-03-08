@@ -1,7 +1,5 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Text;
 
 namespace WebServer
 {
@@ -13,6 +11,7 @@ namespace WebServer
         private static HttpListener listener;
         public static int maxSimultaneousConnections = 20;
         private static Semaphore sem = new Semaphore(maxSimultaneousConnections, maxSimultaneousConnections);
+        private static Router router = new();
 
         /// <summary>
         /// Returns list of IP addresses assigned to localhost network devices, such as hardwired ethernet, wireless, etc.
@@ -71,6 +70,8 @@ namespace WebServer
         /// </summary>
         private static async void StartConnectionListener(HttpListener listener)
         {
+            ResponsePacket responsePacket = null;
+
             // Wait for a connection. Return to caller while we wait.
             HttpListenerContext context = await listener.GetContextAsync();
 
@@ -79,19 +80,41 @@ namespace WebServer
 
             Log(context.Request);
 
+            HttpListenerRequest request = context.Request;
+            string rawUrl = request.RawUrl!;
+            int index = rawUrl.IndexOf("?");
+
+            string verb = request.HttpMethod; // get, post, delete, etc.
+            string path = (index >= 0) ? rawUrl.Substring(0, index) : rawUrl; // Only the path, not any of the parameters.
+            string parameters = (index >= 0) ? rawUrl.Substring(index + 1) : string.Empty; // Params on the URL itself follow the URL and are separated by a ?.
+
+            Dictionary<string, object> kvParams = GetKeyValues(parameters);
+
             // We have a connection, do something...
-            string response = "Hello Browser!";
-            byte[] encoded = Encoding.UTF8.GetBytes(response);
-            context.Response.ContentLength64 = encoded.Length;
-            context.Response.OutputStream.Write(encoded, 0, encoded.Length);
-            context.Response.OutputStream.Close();
+            responsePacket = router.Route(verb, path, kvParams);
+            Respond(context.Response, responsePacket);
+        }
+
+        /// <summary>
+        /// Sends an HTTP response by setting the headers and encoding from the response packet,
+        /// writing its data to the output stream, and closing the stream with an OK status.
+        /// </summary>
+        private static void Respond(HttpListenerResponse response, ResponsePacket respPacket)
+        {
+            response.ContentType = respPacket.ContentType;
+            response.ContentLength64 = respPacket.Data.Length;
+            response.OutputStream.Write(respPacket.Data, 0, respPacket.Data.Length);
+            response.ContentEncoding = respPacket.Encoding;
+            response.StatusCode = (int)HttpStatusCode.OK;
+            response.OutputStream.Close();
         }
 
         /// <summary>
         /// Starts the web server.
         /// </summary>
-        public static void Start()
+        public static void Start(string websitePath)
         {
+            router.WebsitePath = websitePath;
             List<IPAddress> localHostIPs = GetLocalHostIPs();
             HttpListener listener = InitializeListener(localHostIPs);
             Start(listener);
@@ -102,7 +125,7 @@ namespace WebServer
         /// </summary>
         public static void Log(HttpListenerRequest request)
         {
-            string uri = request.Url.AbsoluteUri;
+            string uri = request.Url!.AbsoluteUri;
             int index = -1;
             for (int i = 0; i < 3; i++)
             {
@@ -113,6 +136,36 @@ namespace WebServer
             string result = (index != -1 && index < uri.Length - 1) ? uri.Substring(index + 1) : string.Empty;
 
             Console.WriteLine(request.RemoteEndPoint + " " + request.HttpMethod + " /" + result);
+        }
+
+        /// <summary>
+        /// Separate out key-value pairs, delimited by & and into individual key-value instances, separated by =
+		/// Ex input: username=abc&password=123
+        /// </summary>
+        private static Dictionary<string, object> GetKeyValues(string data, Dictionary<string, object> kv = null)
+        { 
+            if (kv is null)
+                kv = new Dictionary<string, object>();
+
+            if (!string.IsNullOrEmpty(data))
+            {
+                string[] pairs = data.Split('&');
+                foreach (var pair in pairs)
+                {
+                    int pos = pair.IndexOf('=');
+                    if (pos > -1)
+                    {
+                        string key = pair.Substring(0, pos);
+                        string value = pair.Substring(pos + 1);
+                        value = Uri.UnescapeDataString(value);
+                        kv[key] = value;
+                    }
+                    else
+                        kv[pair] = null;                    
+                }
+            }
+
+            return kv;
         }
     }
 }
