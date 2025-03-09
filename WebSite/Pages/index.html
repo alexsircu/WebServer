@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <script type="text/javascript" src="/Scripts/jquery-1.11.2.min.js"></script>
+    <link type="text/css" rel="Stylesheet" href="/CSS/demo.css" />
+    <title>Button Click Demo</title>
+
+    <script type="text/javascript">
+        window.addEventListener("load", function () {
+            fetch('./Demo/buttonclick.html')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('includedContent').innerHTML = html;
+                })
+                .catch(err => console.error('Errore nel caricamento:', err));
+        });
+    </script>
+</head>
+
+<body>
+    <h1>Benvenuto!</h1>
+    <div id="includedContent"></div>
+</body>
+</html>

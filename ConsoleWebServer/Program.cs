@@ -15,7 +15,7 @@ namespace ConsoleWebServer
         public static string GetWebsitePath()
         {
             // Path ou our exe.
-            return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WebSite");
         }
     }
 }

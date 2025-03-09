@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Mime;
-using System.Security.AccessControl;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
 namespace WebServer
 {
@@ -45,7 +38,7 @@ namespace WebServer
                 {"html", new ExtensionInfo() { Loader=PageLoader, ContentType="text/html"} },
                 {"css", new ExtensionInfo() { Loader=FileLoader, ContentType="text/css"} },
                 {"js", new ExtensionInfo() { Loader=FileLoader, ContentType="text/javascript"} },
-                {"", new ExtensionInfo() { Loader=PageLoader, ContentType="text/html"} },
+                {"/", new ExtensionInfo() { Loader=PageLoader, ContentType="text/html"} },
             };
         }
 
@@ -106,13 +99,16 @@ namespace WebServer
         public ResponsePacket Route(string verb, string path, Dictionary<string, object> kvParams)
         {
             int index = path.IndexOf(".");
-            string ext = path.Substring(index);
+            string ext = (index >= 0) ? path.Substring(index + 1) : path;
             ExtensionInfo extInfo;
             ResponsePacket? ret = null;
 
             if (extFolderMap.TryGetValue(ext, out extInfo))
-            { 
-                // Strip off leading '/' and reformat as with windows path separator. 
+            {
+                // Strip off leading '/' and reformat as with windows path separator.
+                if (path.StartsWith("/") || path.StartsWith("\\"))
+                    path = path.Substring(1);
+
                 string fullPath = Path.Combine(WebsitePath, path);
                 ret = extInfo.Loader(fullPath, ext, extInfo);
             }
