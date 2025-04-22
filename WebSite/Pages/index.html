@@ -12,7 +12,11 @@
             fetch('./Demo/buttonclick.html')
                 .then(response => response.text())
                 .then(html => {
-                    document.getElementById('includedContent').innerHTML = html;
+                    const container = document.getElementById('includedContent');
+                    container.innerHTML = html;
+                    document.getElementById('me').addEventListener('click', function () {
+                        alert("I've been clicked!");
+                    });
                 })
                 .catch(err => console.error('Errore nel caricamento:', err));
         });

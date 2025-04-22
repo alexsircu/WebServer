@@ -98,7 +98,7 @@ namespace WebServer
         /// </summary>
         public ResponsePacket Route(string verb, string path, Dictionary<string, object> kvParams)
         {
-            int index = path.IndexOf(".");
+            int index = path.LastIndexOf(".");
             string ext = (index >= 0) ? path.Substring(index + 1) : path;
             ExtensionInfo extInfo;
             ResponsePacket? ret = null;

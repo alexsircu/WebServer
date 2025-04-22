@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 namespace WebServer
 {
@@ -92,6 +93,18 @@ namespace WebServer
 
             // We have a connection, do something...
             responsePacket = router.Route(verb, path, kvParams);
+
+            if (responsePacket == null)
+            {
+                var resp = context.Response;
+                resp.StatusCode = (int)HttpStatusCode.NotFound;
+                byte[] notFound = Encoding.UTF8.GetBytes("404 – Resource not found");
+                resp.ContentLength64 = notFound.Length;
+                resp.OutputStream.Write(notFound, 0, notFound.Length);
+                resp.OutputStream.Close();
+                return;
+            }
+
             Respond(context.Response, responsePacket);
         }
 
