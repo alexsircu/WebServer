@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -85,56 +86,83 @@ namespace WebServer
         private static async void StartConnectionListener(HttpListener listener)
         {
             ResponsePacket responsePacket = null;
+            HttpListenerContext context = null;
+            HttpListenerRequest request = null;
 
-            // Wait for a connection. Return to caller while we wait.
-            HttpListenerContext context = await listener.GetContextAsync();
-
-            // Release the semaphore so that another listener can be immediately started up.
-            sem.Release();
-
-            Log(context.Request);
-
-            HttpListenerRequest request = context.Request;
-            string rawUrl = request.RawUrl!;
-            int index = rawUrl.IndexOf("?");
-
-            string verb = request.HttpMethod; // get, post, delete, etc.
-            string path = (index >= 0) ? rawUrl.Substring(0, index) : rawUrl; // Only the path, not any of the parameters.
-            string parameters = (index >= 0) ? rawUrl.Substring(index + 1) : string.Empty; // Params on the URL itself follow the URL and are separated by a ?.
-
-            Dictionary<string, object> kvParams = GetKeyValues(parameters);
-
-            // We have a connection, do something...
-            responsePacket = router.Route(verb, path, kvParams);
-
-            if (responsePacket.Error != ServerError.OK)
+            try
             {
-                responsePacket = router.Route("get", OnError(responsePacket.Error), null);
+                // Wait for a connection. Return to caller while we wait.
+                context = await listener.GetContextAsync();
 
-                // My solution to solve errors
-                /*var resp = context.Response;
-                resp.StatusCode = (int)HttpStatusCode.NotFound;
-                byte[] notFound = Encoding.UTF8.GetBytes("404 – Resource not found");
-                resp.ContentLength64 = notFound.Length;
-                resp.OutputStream.Write(notFound, 0, notFound.Length);
-                resp.OutputStream.Close();
-                return;*/
+                // Release the semaphore so that another listener can be immediately started up.
+                sem.Release();
+
+                Log(context.Request);
+
+                request = context.Request;
+                string rawUrl = request.RawUrl!;
+                int index = rawUrl.IndexOf("?");
+
+                string verb = request.HttpMethod; // get, post, delete, etc.
+                string path = (index >= 0) ? rawUrl.Substring(0, index) : rawUrl; // Only the path, not any of the parameters.
+                string parameters = (index >= 0) ? rawUrl.Substring(index + 1) : string.Empty; // Params on the URL itself follow the URL and are separated by a ?.
+
+                Dictionary<string, object> kvParams = GetKeyValues(parameters);
+
+                // We have a connection, do something...
+                responsePacket = router.Route(verb, path, kvParams);
+
+                if (responsePacket.Error != ServerError.OK)
+                {
+                    responsePacket.Redirect = OnError(responsePacket.Error);
+
+                    // My solution to solve errors
+                    /*var resp = context.Response;
+                    resp.StatusCode = (int)HttpStatusCode.NotFound;
+                    byte[] notFound = Encoding.UTF8.GetBytes("404 – Resource not found");
+                    resp.ContentLength64 = notFound.Length;
+                    resp.OutputStream.Write(notFound, 0, notFound.Length);
+                    resp.OutputStream.Close();
+                    return;*/
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+
+                if (context == null)
+                    return;
+
+                responsePacket = new ResponsePacket() { Redirect = OnError(ServerError.ServerError) };
             }
 
-            Respond(context.Response, responsePacket);
+            if (context != null && request != null)
+            {
+                Respond(request, context.Response, responsePacket);
+            }
         }
 
         /// <summary>
         /// Sends an HTTP response by setting the headers and encoding from the response packet,
         /// writing its data to the output stream, and closing the stream with an OK status.
         /// </summary>
-        private static void Respond(HttpListenerResponse response, ResponsePacket respPacket)
+        private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket respPacket)
         {
-            response.ContentType = respPacket.ContentType;
-            response.ContentLength64 = respPacket.Data.Length;
-            response.OutputStream.Write(respPacket.Data, 0, respPacket.Data.Length);
-            response.ContentEncoding = respPacket.Encoding;
-            response.StatusCode = (int)HttpStatusCode.OK;
+            if (string.IsNullOrEmpty(respPacket.Redirect))
+            {
+                response.ContentType = respPacket.ContentType;
+                response.ContentLength64 = respPacket.Data.Length;
+                response.OutputStream.Write(respPacket.Data, 0, respPacket.Data.Length);
+                response.ContentEncoding = respPacket.Encoding;
+                response.StatusCode = (int)HttpStatusCode.OK;
+            }
+            else
+            {
+                response.StatusCode = (int)HttpStatusCode.Redirect;
+                response.Redirect("http://" + request.UserHostAddress + respPacket.Redirect);
+            }
+
             response.OutputStream.Close();
         }
 
