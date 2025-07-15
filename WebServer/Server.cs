@@ -9,11 +9,24 @@ namespace WebServer
     /// </summary>
     public static class Server
     {
+        public enum ServerError
+        {
+            OK,
+            ExpiredSession,
+            NotAuthorized,
+            FileNotFound,
+            PageNotFound,
+            ServerError,
+            UnknownType,
+        }
+
         private static HttpListener listener;
         public static int maxSimultaneousConnections = 20;
         private static Semaphore sem = new Semaphore(maxSimultaneousConnections, maxSimultaneousConnections);
         private static Router router = new();
 
+        public static Func<ServerError, string> OnError;
+ 
         /// <summary>
         /// Returns list of IP addresses assigned to localhost network devices, such as hardwired ethernet, wireless, etc.
         /// </summary>
@@ -94,15 +107,18 @@ namespace WebServer
             // We have a connection, do something...
             responsePacket = router.Route(verb, path, kvParams);
 
-            if (responsePacket == null)
+            if (responsePacket.Error != ServerError.OK)
             {
-                var resp = context.Response;
+                responsePacket = router.Route("get", OnError(responsePacket.Error), null);
+
+                // My solution to solve errors
+                /*var resp = context.Response;
                 resp.StatusCode = (int)HttpStatusCode.NotFound;
                 byte[] notFound = Encoding.UTF8.GetBytes("404 – Resource not found");
                 resp.ContentLength64 = notFound.Length;
                 resp.OutputStream.Write(notFound, 0, notFound.Length);
                 resp.OutputStream.Close();
-                return;
+                return;*/
             }
 
             Respond(context.Response, responsePacket);
