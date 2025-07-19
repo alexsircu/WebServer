@@ -12,8 +12,10 @@ namespace WebServer
     }
 
     public class Route
-    { 
-    
+    {
+        public string? Verb { get; set; }
+        public string? Path { get; set; }
+        public Func<Dictionary<string, string>, string>? Action { get; set; }
     }
 
     public class ExtensionInfo
@@ -26,6 +28,7 @@ namespace WebServer
     {
         public string? WebsitePath { get; set; }
         private Dictionary<string, ExtensionInfo> extFolderMap;
+        private List<Route>? Routes;
 
         public Router()
         {
@@ -41,6 +44,11 @@ namespace WebServer
                 {"js", new ExtensionInfo() { Loader=FileLoader, ContentType="text/javascript"} },
                 {"/", new ExtensionInfo() { Loader=PageLoader, ContentType="text/html"} },
             };
+        }
+
+        public void AddRoute(Route route)
+        {
+            Routes.Add(route);
         }
 
         /// <summary>
@@ -116,17 +124,18 @@ namespace WebServer
         /// Routes an HTTP request by extracting the file extension from the path and invoking the appropriate loader
         /// to generate a response packet, or returns null if no mapping exists.
         /// </summary>
-        public ResponsePacket Route(string verb, string path, Dictionary<string, object> kvParams)
+        public ResponsePacket Route(string verb, string path, Dictionary<string, string> kvParams)
         {
             if (path == "/")
             {
-                path = "index.html";
+                path = "/index.html";
             }
 
             int index = path.LastIndexOf(".");
             string ext = (index >= 0) ? path.Substring(index + 1) : "";
             ExtensionInfo extInfo;
             ResponsePacket? ret = null;
+            verb = verb.ToLower();
 
             if (extFolderMap.TryGetValue(ext, out extInfo))
             {
@@ -135,7 +144,30 @@ namespace WebServer
                     path = path.Substring(1);
 
                 string fullPath = Path.Combine(WebsitePath, path);
-                ret = extInfo.Loader(fullPath, ext, extInfo);
+
+                Route route = Routes.SingleOrDefault(r => verb == r.Verb.ToLower() && path == r.Path);
+
+                if (route != null)
+                {
+                    // Application has a handler for this route.
+                    string redirect = route.Action(kvParams);
+
+                    if (string.IsNullOrEmpty(redirect))
+                    {
+                        // Respond with default content loader.
+                        ret = extInfo.Loader(fullPath, ext, extInfo);
+                    }
+                    else
+                    {
+                        // Respond with redirect.
+                        ret = new ResponsePacket() { Redirect = redirect };
+                    }
+                }
+                else
+                {
+                    // Attempt default behavior
+                    ret = extInfo.Loader(fullPath, ext, extInfo);
+                }
             }
             else if (string.IsNullOrEmpty(ext))
             {

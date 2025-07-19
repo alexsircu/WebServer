@@ -1,7 +1,5 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace WebServer
 {
@@ -107,7 +105,7 @@ namespace WebServer
                 string path = (index >= 0) ? rawUrl.Substring(0, index) : rawUrl; // Only the path, not any of the parameters.
                 string parameters = (index >= 0) ? rawUrl.Substring(index + 1) : string.Empty; // Params on the URL itself follow the URL and are separated by a ?.
 
-                Dictionary<string, object> kvParams = GetKeyValues(parameters);
+                Dictionary<string, string> kvParams = GetKeyValues(parameters);
 
                 // We have a connection, do something...
                 responsePacket = router.Route(verb, path, kvParams);
@@ -149,19 +147,17 @@ namespace WebServer
         /// </summary>
         private static void Respond(HttpListenerRequest request, HttpListenerResponse response, ResponsePacket respPacket)
         {
-            if (string.IsNullOrEmpty(respPacket.Redirect))
+            if (!string.IsNullOrEmpty(respPacket.Redirect))
             {
-                response.ContentType = respPacket.ContentType;
-                response.ContentLength64 = respPacket.Data.Length;
-                response.OutputStream.Write(respPacket.Data, 0, respPacket.Data.Length);
-                response.ContentEncoding = respPacket.Encoding;
-                response.StatusCode = (int)HttpStatusCode.OK;
+                Console.WriteLine("[REDIRECT] Interno verso " + respPacket.Redirect);
+                respPacket = router.Route("GET", respPacket.Redirect, null);
             }
-            else
-            {
-                response.StatusCode = (int)HttpStatusCode.Redirect;
-                response.Redirect("http://" + request.UserHostAddress + respPacket.Redirect);
-            }
+
+            response.ContentType = respPacket.ContentType;
+            response.ContentLength64 = respPacket.Data.Length;
+            response.OutputStream.Write(respPacket.Data, 0, respPacket.Data.Length);
+            response.ContentEncoding = respPacket.Encoding;
+            response.StatusCode = (int)HttpStatusCode.OK;
 
             response.OutputStream.Close();
         }
@@ -199,10 +195,10 @@ namespace WebServer
         /// Separate out key-value pairs, delimited by & and into individual key-value instances, separated by =
 		/// Ex input: username=abc&password=123
         /// </summary>
-        private static Dictionary<string, object> GetKeyValues(string data, Dictionary<string, object> kv = null)
+        private static Dictionary<string, string> GetKeyValues(string data, Dictionary<string, string> kv = null)
         { 
             if (kv is null)
-                kv = new Dictionary<string, object>();
+                kv = new Dictionary<string, string>();
 
             if (!string.IsNullOrEmpty(data))
             {
